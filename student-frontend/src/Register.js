@@ -48,7 +48,6 @@ function Register({ setPage }) {
       {/* ROLE SELECT */}
       <select value={role} onChange={e => setRole(e.target.value)}>
         <option value="student">Student</option>
-        <option value="faculty">Faculty</option>
         <option value="parent">Parent</option>
       </select>
 

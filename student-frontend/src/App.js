@@ -1,240 +1,122 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
+
+import AdminPanel from "./AdminPanel";
+import FacultyPanel from "./FacultyPanel";
 import Login from "./Login";
 import Register from "./Register";
-import StudentForm from "./StudentForm";
 import ParentPanel from "./ParentPanel";
 
 function App() {
-  const [role, setRole] = useState(localStorage.getItem("role"));
+  const [page, setPage] = useState("login");
+  const [token, setToken] = useState(localStorage.getItem("token") || "");
+  const [role, setRole] = useState(localStorage.getItem("role") || "");
   const [students, setStudents] = useState([]);
   const [editData, setEditData] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem("token"));
-  const [page, setPage] = useState("login");
 
-  // Fetch students
-const fetchStudents = () => {
-  if (!token || !role) return;
-
-  let url = "";
-
-  if (role === "admin") {
-    url = "http://localhost:3000/students";
-  } else if (role === "parent") {
-    url = "http://localhost:3000/parent/my-child";
-  } else {
-    url = "http://localhost:3000/my-data";
-  }
-
-  fetch(url, {
-    headers: { Authorization: token }
-  })
- .then(res => res.json())
-.then(data => {
-  setStudents(Array.isArray(data) ? data : []);
-})
-    .catch(err => {
-      console.error(err);
-      setStudents([]);
-    });
-};
-
-  // Edit
   useEffect(() => {
-  if (token && role) {
-    fetchStudents();
-  }
-}, [token, role]);
+    if (token) {
+      fetchStudents();
+    }
+  }, [token]);
 
-  // Logout
-const logout = () => {
-  const confirmLogout = window.confirm("Are you sure you want to logout?");
+  const fetchStudents = async () => {
+    try {
+      const response = await fetch("http://localhost:5000/api/students", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-  if (!confirmLogout) return;
+      const data = await response.json();
 
-  localStorage.removeItem("token");
-  localStorage.removeItem("role");
-
-  setToken(null);
-  setRole(null);
-  setStudents([]);
-
-  setPage("login");
-};
-const deleteStudent = async (id) => {
-  try {
-    await fetch(`http://localhost:3000/delete/${id}`, {
-      method: "DELETE",
-      headers: {
-        Authorization: token
+      if (response.ok) {
+        setStudents(data);
+      } else {
+        console.error(data.message);
       }
-    });
+    } catch (error) {
+      console.error("Error fetching students:", error);
+    }
+  };
 
-    fetchStudents();
-  } catch (err) {
-    console.error("Delete error:", err);
-  }
-};
+  const deleteStudent = async (id) => {
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/students/${id}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
-return (
+      if (response.ok) {
+        fetchStudents();
+      }
+    } catch (error) {
+      console.error("Delete failed:", error);
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("role");
+    setToken("");
+    setRole("");
+    setPage("login");
+  };
+
+ return (
   <>
     {!token ? (
       page === "login" ? (
         <Login
-          setToken={setToken}
+          setToken={(newToken) => {
+            setToken(newToken);
+            localStorage.setItem("token", newToken);
+          }}
+          setRole={(newRole) => {
+            setRole(newRole);
+            localStorage.setItem("role", newRole);
+          }}
           setPage={setPage}
-          setRole={setRole}
         />
       ) : (
         <Register setPage={setPage} />
       )
-    ) : role === "admin" ? (
-      <div className="container">
-        <h1>Admin Student Panel</h1>
-
-        <button className="logout" onClick={logout}>
-          Logout
-        </button>
-
-        {editData && (
-          <div className="edit-box">
-            <h3>Edit Student</h3>
-
-            <input
-              placeholder="First Name"
-              value={editData.firstName || ""}
-              onChange={e =>
-                setEditData({
-                  ...editData,
-                  firstName: e.target.value
-                })
-              }
-            />
-
-            <input
-              placeholder="Last Name"
-              value={editData.lastName || ""}
-              onChange={e =>
-                setEditData({
-                  ...editData,
-                  lastName: e.target.value
-                })
-              }
-            />
-
-            <input
-              placeholder="Roll Number"
-              value={editData.studentId || ""}
-              onChange={e =>
-                setEditData({
-                  ...editData,
-                  studentId: e.target.value
-                    .replace(/\D/g, "")
-                    .slice(0, 7)
-                })
-              }
-            />
-
-            <input
-              placeholder="Course"
-              value={editData.course || ""}
-              onChange={e =>
-                setEditData({
-                  ...editData,
-                  course: e.target.value
-                })
-              }
-            />
-
-            <button
-              className="primary"
-              onClick={async () => {
-                if (editData.studentId.length > 7) {
-                  alert("Roll Number cannot exceed 7 digits");
-                  return;
-                }
-
-                await fetch(
-                  `http://localhost:3000/update/${editData._id}`,
-                  {
-                    method: "PUT",
-                    headers: {
-                      "Content-Type": "application/json",
-                      Authorization: token
-                    },
-                    body: JSON.stringify(editData)
-                  }
-                );
-
-                setEditData(null);
-                fetchStudents();
-              }}
-            >
-              Save Changes
-            </button>
-          </div>
-        )}
-
-        <h2>Student List</h2>
-
-        <ul>
-          {students.map(s => (
-            <li key={s._id}>
-              {s.firstName} {s.lastName} - {s.course}
-              <br />
-
-              <button
-                className="edit"
-                onClick={() => setEditData(s)}
-              >
-                Edit
-              </button>
-
-              <button
-                className="delete"
-                onClick={() => deleteStudent(s._id)}
-              >
-                Delete
-              </button>
-            </li>
-          ))}
-        </ul>
+    ) : role === "student" ? (
+      <div style={{ padding: "30px", color: "white" }}>
+        <h2>Student Dashboard</h2>
+        <p>Welcome Student</p>
+        <button onClick={logout}>Logout</button>
       </div>
+    ) : role === "faculty" ? (
+      <FacultyPanel
+        students={students}
+        logout={logout}
+        fetchStudents={fetchStudents}
+        token={token}
+      />
+    ) : role === "admin" ? (
+      <AdminPanel
+        students={students}
+        logout={logout}
+        editData={editData}
+        setEditData={setEditData}
+        deleteStudent={deleteStudent}
+        fetchStudents={fetchStudents}
+        token={token}
+      />
     ) : role === "parent" ? (
       <ParentPanel
         students={students}
         logout={logout}
       />
-    ) : (
-      <div className="container">
-        <h1>Student Dashboard</h1>
-
-        <button className="logout" onClick={logout}>
-          Logout
-        </button>
-
-        {students.length === 0 ? (
-          <StudentForm
-            token={token}
-            refresh={fetchStudents}
-          />
-        ) : (
-          <>
-            <h3>My Data</h3>
-
-            <ul>
-              {students.map(s => (
-                <li key={s._id}>
-                  {s.studentId} | {s.firstName}{" "}
-                  {s.lastName} - {s.course}
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-      </div>
-    )}
+    ) : null}
   </>
 );
-} 
+}
+
 export default App;
